@@ -1,4 +1,4 @@
-module bolanosdev/prometheus-mux-monitor
+module github.com/bolanosdev/prometheus-mux-monitor
 
 go 1.23
 
