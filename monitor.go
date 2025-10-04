@@ -7,12 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/IBM/pgxpoolprometheus"
-	"github.com/gorilla/mux"
 	"github.com/mackerelio/go-osstat/cpu"
 	"github.com/mackerelio/go-osstat/memory"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 var (
@@ -34,6 +30,8 @@ var (
 )
 
 func (m *Monitor) Interceptor(next http.Handler) http.Handler {
+	m.initMetrics()
+
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		url := r.RequestURI
 		startTime := time.Now()
@@ -49,18 +47,6 @@ func (m *Monitor) Interceptor(next http.Handler) http.Handler {
 	})
 }
 
-// Use set gin metrics middleware
-func (m *Monitor) Use(r *mux.Router) {
-	m.initMetrics()
-	collector := pgxpoolprometheus.NewCollector(m.pool, map[string]string{"db_name": "brawney_db"})
-	prometheus.MustRegister(collector)
-	if r != nil {
-		r.Use(m.Interceptor)
-		r.Handle(m.metricPath, promhttp.Handler())
-	}
-}
-
-// initMetrics used to init gin metrics
 func (m *Monitor) initMetrics() {
 	bloomFilter = NewBloomFilter()
 
@@ -228,7 +214,6 @@ func (m *Monitor) hostMetrics() {
 	cpu_system := (float64(cpu.System) / float64(cpu.Total)) * 100
 	cpu_idle := (float64(cpu.Idle) / float64(cpu.Total)) * 100
 
-	// EmitMemoryMetrics(c.packageName, memory.Total, memory.Used, memory.Cached, memory.Free)
 	memory_used := (float64(memory.Used) / float64(memory.Total) * 100)
 	memory_cached := (float64(memory.Cached) / float64(memory.Total) * 100)
 
@@ -239,19 +224,14 @@ func (m *Monitor) hostMetrics() {
 	_ = m.GetMetric(metricCPUUserTotal).Observe(m.getMetricValues(metric_values), cpu_user)
 	_ = m.GetMetric(metricMemUsedTotal).Observe(m.getMetricValues(metric_values), memory_used)
 	_ = m.GetMetric(metricMemCachedTotal).Observe(m.getMetricValues(metric_values), memory_cached)
-
-	// log.Printf("cpu user %v system %v, idle %v", cpu_user, cpu_system, cpu_idle)
-	// log.Printf("mem used %v cached %v, ", memory_used, memory_cached)
 }
 
 func (m *Monitor) metricHandle(w http.ResponseWriter, r *http.Request, start time.Time) {
 	status := w.Header().Get("x-status-code")
 
-	// set request total
 	var metric_values []string = nil
 	_ = m.GetMetric(metricRequestTotal).Inc(m.getMetricValues(metric_values))
 
-	// set uv
 	if clientIP := r.RemoteAddr; !bloomFilter.Contains(clientIP) {
 		clientIP = strings.Split(clientIP, ":")[0]
 		bloomFilter.Add(clientIP)
@@ -262,29 +242,24 @@ func (m *Monitor) metricHandle(w http.ResponseWriter, r *http.Request, start tim
 		_ = m.GetMetric(metricRequestUV).Inc(m.getMetricValues(metric_values))
 	}
 
-	// set uri request total
 	metric_values = []string{r.RequestURI, r.Method, status}
 	_ = m.GetMetric(metricURIRequestTotal).Inc(m.getMetricValues(metric_values))
 
-	// set request body size
-	// since r.ContentLength can be negative (in some occasions) guard the operation
 	if r.ContentLength >= 0 {
 		metric_values = nil
 		_ = m.GetMetric(metricRequestBody).Add(m.getMetricValues(metric_values), float64(r.ContentLength))
 	}
 
-	// set slow request
 	latency := time.Since(start)
 	if int32(latency.Seconds()) > m.slowTime {
 		metric_values = []string{r.RequestURI, r.Method, status}
 		_ = m.GetMetric(metricSlowRequest).Inc(m.getMetricValues(metric_values))
 	}
 
-	// set request duration
 	metric_values = []string{r.RequestURI}
 	_ = m.GetMetric(metricRequestDuration).Observe(m.getMetricValues(metric_values), latency.Seconds())
 
-	//// set response size
+	// set response size
 	//if w.Size() > 0 {
 	//metric_values = nil
 	//_ = m.GetMetric(metricResponseBody).Add(m.getMetricValues(metric_values), float64(w.Size()))

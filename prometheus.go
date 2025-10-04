@@ -1,7 +1,6 @@
 package prometheus
 
 import (
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 )
@@ -34,9 +33,7 @@ var (
 	}
 )
 
-// Monitor is an object that uses to set gin server monitor.
 type Monitor struct {
-	pool         *pgxpool.Pool
 	slowTime     int32
 	metricPath   string
 	excludePaths []string
@@ -47,12 +44,9 @@ type Monitor struct {
 	metadata     map[string]string
 }
 
-// GetMonitor used to get global Monitor object,
-// this function returns a singleton object.
-func GetMonitor(pool *pgxpool.Pool) *Monitor {
+func GetMonitor() *Monitor {
 	if monitor == nil {
 		monitor = &Monitor{
-			pool:         pool,
 			metricPath:   defaultMetricPath,
 			slowTime:     defaultSlowTime,
 			excludePaths: defaultExcludePaths,
@@ -66,7 +60,6 @@ func GetMonitor(pool *pgxpool.Pool) *Monitor {
 	return monitor
 }
 
-// GetMetric used to get metric object by metric_name.
 func (m *Monitor) GetMetric(name string) *Metric {
 	if metric, ok := m.metrics[name]; ok {
 		return metric
@@ -74,25 +67,18 @@ func (m *Monitor) GetMetric(name string) *Metric {
 	return &Metric{}
 }
 
-// SetMetricPath set metricPath property. metricPath is used for Prometheus
-// to get gin server monitoring data.
 func (m *Monitor) SetMetricPath(path string) {
 	m.metricPath = path
 }
 
-// SetExcludePaths set exclude paths which should not be reported (e.g. /ping /healthz...)
 func (m *Monitor) SetExcludePaths(paths []string) {
 	m.excludePaths = paths
 }
 
-// SetSlowTime set slowTime property. slowTime is used to determine whether
-// the request is slow. For "gin_slow_request_total" metric.
 func (m *Monitor) SetSlowTime(slowTime int32) {
 	m.slowTime = slowTime
 }
 
-// SetDuration set reqDuration property. reqDuration is used to ginRequestDuration
-// metric buckets.
 func (m *Monitor) SetDuration(duration []float64) {
 	m.reqDuration = duration
 }
@@ -117,7 +103,6 @@ func (m *Monitor) SetMetricSuffix(suffix string) {
 	metricSlowRequest += suffix
 }
 
-// AddMetric add custom monitor metric.
 func (m *Monitor) AddMetric(metric *Metric) error {
 	if _, ok := m.metrics[metric.Name]; ok {
 		return errors.Errorf("metric '%s' is existed", metric.Name)
