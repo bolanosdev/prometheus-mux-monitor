@@ -43,7 +43,7 @@ func main() {
     
     // Your routes
     r.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-        w.Header().Set("x-status-code", "200")
+        w.WriteHeader(http.StatusOK)
         w.Write([]byte("Hello World"))
     })
     
@@ -173,18 +173,6 @@ monitor.AddMetric(&prometheus.Metric{
 
 metric := monitor.GetMetric("custom_summary")
 metric.Observe([]string{"value1"}, 3.7)
-```
-
-## Response Status Code
-
-To properly track status codes, set the `x-status-code` header in your response:
-
-```go
-r.HandleFunc("/api/users", func(w http.ResponseWriter, r *http.Request) {
-    w.Header().Set("x-status-code", "200")
-    w.WriteHeader(http.StatusOK)
-    json.NewEncoder(w).Encode(users)
-})
 ```
 
 ## Development

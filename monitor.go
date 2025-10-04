@@ -29,6 +29,23 @@ var (
 	bloomFilter *BloomFilter
 )
 
+type responseWriter struct {
+	http.ResponseWriter
+	statusCode int
+}
+
+func (rw *responseWriter) WriteHeader(code int) {
+	rw.statusCode = code
+	rw.ResponseWriter.WriteHeader(code)
+}
+
+func (rw *responseWriter) Write(b []byte) (int, error) {
+	if rw.statusCode == 0 {
+		rw.statusCode = http.StatusOK
+	}
+	return rw.ResponseWriter.Write(b)
+}
+
 func (m *Monitor) Interceptor(next http.Handler) http.Handler {
 	m.initMetrics()
 
@@ -42,8 +59,13 @@ func (m *Monitor) Interceptor(next http.Handler) http.Handler {
 			return
 		}
 
-		next.ServeHTTP(w, r)
-		m.metricHandle(w, r, startTime)
+		rw := &responseWriter{
+			ResponseWriter: w,
+			statusCode:     0,
+		}
+
+		next.ServeHTTP(rw, r)
+		m.metricHandle(rw, r, startTime)
 	})
 }
 
@@ -226,8 +248,12 @@ func (m *Monitor) hostMetrics() {
 	_ = m.GetMetric(metricMemCachedTotal).Observe(m.getMetricValues(metric_values), memory_cached)
 }
 
-func (m *Monitor) metricHandle(w http.ResponseWriter, r *http.Request, start time.Time) {
-	status := w.Header().Get("x-status-code")
+func (m *Monitor) metricHandle(rw *responseWriter, r *http.Request, start time.Time) {
+	statusCode := rw.statusCode
+	if statusCode == 0 {
+		statusCode = http.StatusOK
+	}
+	status := fmt.Sprintf("%d", statusCode)
 
 	var metric_values []string = nil
 	_ = m.GetMetric(metricRequestTotal).Inc(m.getMetricValues(metric_values))
