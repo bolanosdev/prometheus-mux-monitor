@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.1] - 2025-10-03
+
+### Added
+- Response writer wrapper to automatically capture HTTP status codes
+- Comprehensive README with usage examples and API documentation
+
+### Changed
+- **BREAKING**: Status codes are now automatically captured from HTTP responses instead of requiring manual `x-status-code` header
+- Interceptor now wraps ResponseWriter to track status codes transparently
+- Default status code is now 200 OK if not explicitly set
+
+### Removed
+- **BREAKING**: Removed requirement for `x-status-code` header in responses
+
 ## [0.2.0] - 2025-10-03
 
 ### Added
